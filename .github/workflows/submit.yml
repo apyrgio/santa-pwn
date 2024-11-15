@@ -17,26 +17,26 @@ jobs:
       env:
         privkey: ${{ secrets.KENNYS_PRIVATE_KEY }}
       run: |-
-		sudo apt-get update && sudo apt-get install -y gnupg2
+        sudo apt-get update && sudo apt-get install -y gnupg2
         echo $privkey | gpg --import
         gpg --decrypt letter.gpg
         rm -rf ~/.gnupg
     - name: Install Dangerzone
       run: |-
-		sudo apt-get update && sudo apt-get install ca-certificates -y
-		gpg --keyserver hkps://keys.openpgp.org \
-			--no-default-keyring --keyring ./fpf-apt-tools-archive-keyring.gpg \
-			--recv-keys "DE28 AB24 1FA4 8260 FAC9 B8BA A7C9 B385 2260 4281"
-		sudo mkdir -p /etc/apt/keyrings/
-		sudo mv fpf-apt-tools-archive-keyring.gpg /etc/apt/keyrings
+        sudo apt-get update && sudo apt-get install ca-certificates -y
+        gpg --keyserver hkps://keys.openpgp.org \
+            --no-default-keyring --keyring ./fpf-apt-tools-archive-keyring.gpg \
+            --recv-keys "DE28 AB24 1FA4 8260 FAC9 B8BA A7C9 B385 2260 4281"
+        sudo mkdir -p /etc/apt/keyrings/
+        sudo mv fpf-apt-tools-archive-keyring.gpg /etc/apt/keyrings
 
-		. /etc/os-release
-		echo "deb [signed-by=/etc/apt/keyrings/fpf-apt-tools-archive-keyring.gpg] \
-			https://packages.freedom.press/apt-tools-prod ${VERSION_CODENAME?} main" \
-			| sudo tee /etc/apt/sources.list.d/fpf-apt-tools.list
+        . /etc/os-release
+        echo "deb [signed-by=/etc/apt/keyrings/fpf-apt-tools-archive-keyring.gpg] \
+            https://packages.freedom.press/apt-tools-prod ${VERSION_CODENAME?} main" \
+            | sudo tee /etc/apt/sources.list.d/fpf-apt-tools.list
 
-		sudo apt update
-		sudo apt install -y dangerzone
+        sudo apt update
+        sudo apt install -y dangerzone
     - name: Generate secrets
       run: |-
         mkdir ~/secrets
@@ -56,7 +56,7 @@ jobs:
         podman build -f Dockerfile ~/secrets -t dangerzone.rocks/dangerzone
         podman image list --format '{{.ID}}' dangerzone.rocks/dangerzone | \
             sudo tee /usr/share/dangerzone/image-id.txt
-	- name: Sanitize submission
+    - name: Sanitize submission
       run: |-
         dangezone-cli letter --ocr-lang eng
     - name: Check submission
