@@ -1,0 +1,65 @@
+name: Check submission
+on:
+  push:
+  pull_request:
+    branches: [main]
+
+jobs:
+  check-submission:
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - name: "xkcd #838"
+      run: |-
+        CHANGES=$(git diff origin/main --name-only)
+        [[ "$CHANGES" == "letter.gpg" ]]
+    - name: Decrypt submission
+      env:
+        privkey: ${{ secrets.KENNYS_PRIVATE_KEY }}
+      run: |-
+		sudo apt-get update && sudo apt-get install -y gnupg2
+        echo $privkey | gpg --import
+        gpg --decrypt letter.gpg
+        rm -rf ~/.gnupg
+    - name: Install Dangerzone
+      run: |-
+		sudo apt-get update && sudo apt-get install ca-certificates -y
+		gpg --keyserver hkps://keys.openpgp.org \
+			--no-default-keyring --keyring ./fpf-apt-tools-archive-keyring.gpg \
+			--recv-keys "DE28 AB24 1FA4 8260 FAC9 B8BA A7C9 B385 2260 4281"
+		sudo mkdir -p /etc/apt/keyrings/
+		sudo mv fpf-apt-tools-archive-keyring.gpg /etc/apt/keyrings
+
+		. /etc/os-release
+		echo "deb [signed-by=/etc/apt/keyrings/fpf-apt-tools-archive-keyring.gpg] \
+			https://packages.freedom.press/apt-tools-prod ${VERSION_CODENAME?} main" \
+			| sudo tee /etc/apt/sources.list.d/fpf-apt-tools.list
+
+		sudo apt update
+		sudo apt install -y dangerzone
+    - name: Generate secrets
+      run: |-
+        mkdir ~/secrets
+        # Instruct xxd to read from urandom and:
+        #
+        # 1. Create a hexademical string (-p),
+        # 2. without newlines (-c 999),
+        # 3. and length 128 characters (-l 128),
+        #
+        # which amounts to 256 bits of entropy
+        xxd -p -c 999 -l 32 /dev/urandom > ~/secrets/rasterizer
+        xxd -p -c 999 -l 32 /dev/urandom > ~/secrets/gvisor
+        xxd -p -c 999 -l 32 /dev/urandom > ~/secrets/host
+    - name: Plant secrets in Dangerzone container image
+      run: |-
+        zcat /usr/share/dangerzone/container.tar.gz | podman load
+        podman build -f Dockerfile ~/secrets -t dangerzone.rocks/dangerzone
+        podman image list --format '{{.ID}}' dangerzone.rocks/dangerzone | \
+            sudo tee /usr/share/dangerzone/image-id.txt
+	- name: Sanitize submission
+      run: |-
+        dangezone-cli letter --ocr-lang eng
+    - name: Check submission
+      run: |-
+        apt-get install -y python3-fitz
+        ./check_submission letter-safe.pdf ~/secrets
