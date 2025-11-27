@@ -28,6 +28,10 @@ Before you dive in, here are the rules of engagement:
 
 1. **No Attacking the GitHub Action Workflow:** This is a friendly challenge, not a full-blown cyber war! Focus on the document crafting.
 2. **Encrypt Your Submissions:** All documents must be submitted as encrypted files (`/letter.gpg`) using Kenny's public key. [🔑 Get Kenny's Public Key Here!](https://github.com/apyrgio/santa-pwn/blob/main/kenny.asc)
+
+   ```
+   gpg --recipient kenny@santa.club  --encrypt letter
+   ```
 3. **Document Types:** Feel free to use any document types that Dangerzone accepts.
 
 ## 🎁 What’s at Stake?

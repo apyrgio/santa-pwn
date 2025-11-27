@@ -14,14 +14,17 @@ jobs:
       #    # Make sure that the PR has just the encrypted submission.
       #    CHANGES=$(git diff origin/main --name-only)
       #    [[ "$CHANGES" == "letter.gpg" ]]
-      #- name: Decrypt submission
-      #  env:
-      #    privkey: ${{ secrets.KENNYS_PRIVATE_KEY }}
-      #  run: |-
-      #    sudo apt-get update && sudo apt-get install -y gnupg2
-      #    echo $privkey | gpg --import
-      #    gpg --decrypt letter.gpg
-      #    rm -rf ~/.gnupg
+      - name: Import GPG key
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.KENNYS_PRIVATE_KEY }}
+      - name: Decrypt submission
+        env:
+          privkey: ${{ secrets.KENNYS_PRIVATE_KEY }}
+        run: |-
+          gpg --output letter --decrypt letter.gpg
+          # FIXME: We don't want folks to exfiltrate this key, is this enough?
+          rm -rf ~/.gnupg
       #- name: Install Dangerzone
       #  run: |-
       #    sudo apt-get update && sudo apt-get install ca-certificates -y
@@ -91,9 +94,9 @@ jobs:
           else
             ./check_submission.py -l logs -S ~/secrets
           fi
-      - name: Setup upterm session
-        uses: owenthereal/action-upterm@v1
-        if: ${{ failure() }}
-        with:
-          limit-access-to-actor: true # Restrict to the user who triggered the workflow
-          limit-access-to-users: apyrgio
+      #- name: Setup upterm session
+      #  uses: owenthereal/action-upterm@v1
+      #  if: ${{ failure() }}
+      #  with:
+      #    limit-access-to-actor: true # Restrict to the user who triggered the workflow
+      #    limit-access-to-users: apyrgio
