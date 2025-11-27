@@ -8,44 +8,48 @@ jobs:
   check-submission:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Setup upterm session
-        uses: owenthereal/action-upterm@v1
-        with:
-          limit-access-to-actor: true # Restrict to the user who triggered the workflow
-          limit-access-to-users: apyrgio
-      - name: "xkcd #838"
-        run: |-
-          # Make sure that the PR has just the encrypted submission.
-          CHANGES=$(git diff origin/main --name-only)
-          [[ "$CHANGES" == "letter.gpg" ]]
-      - name: Decrypt submission
-        env:
-          privkey: ${{ secrets.KENNYS_PRIVATE_KEY }}
-        run: |-
-          sudo apt-get update && sudo apt-get install -y gnupg2
-          echo $privkey | gpg --import
-          gpg --decrypt letter.gpg
-          rm -rf ~/.gnupg
-      - name: Install Dangerzone
-        run: |-
-          sudo apt-get update && sudo apt-get install ca-certificates -y
-          gpg --keyserver hkps://keys.openpgp.org \
-              --no-default-keyring --keyring ./fpf-apt-tools-archive-keyring.gpg \
-              --recv-keys "DE28 AB24 1FA4 8260 FAC9 B8BA A7C9 B385 2260 4281"
-          sudo mkdir -p /etc/apt/keyrings/
-          sudo mv fpf-apt-tools-archive-keyring.gpg /etc/apt/keyrings
+      - uses: actions/checkout@v6
+      #- name: "xkcd #838"
+      #  run: |-
+      #    # Make sure that the PR has just the encrypted submission.
+      #    CHANGES=$(git diff origin/main --name-only)
+      #    [[ "$CHANGES" == "letter.gpg" ]]
+      #- name: Decrypt submission
+      #  env:
+      #    privkey: ${{ secrets.KENNYS_PRIVATE_KEY }}
+      #  run: |-
+      #    sudo apt-get update && sudo apt-get install -y gnupg2
+      #    echo $privkey | gpg --import
+      #    gpg --decrypt letter.gpg
+      #    rm -rf ~/.gnupg
+      #- name: Install Dangerzone
+      #  run: |-
+      #    sudo apt-get update && sudo apt-get install ca-certificates -y
+      #    gpg --keyserver hkps://keys.openpgp.org \
+      #        --no-default-keyring --keyring ./fpf-apt-tools-archive-keyring.gpg \
+      #        --recv-keys "DE28 AB24 1FA4 8260 FAC9 B8BA A7C9 B385 2260 4281"
+      #    sudo mkdir -p /etc/apt/keyrings/
+      #    sudo mv fpf-apt-tools-archive-keyring.gpg /etc/apt/keyrings
 
-          . /etc/os-release
-          echo "deb [signed-by=/etc/apt/keyrings/fpf-apt-tools-archive-keyring.gpg] \
-              https://packages.freedom.press/apt-tools-prod ${VERSION_CODENAME?} main" \
-              | sudo tee /etc/apt/sources.list.d/fpf-apt-tools.list
+      #    . /etc/os-release
+      #    echo "deb [signed-by=/etc/apt/keyrings/fpf-apt-tools-archive-keyring.gpg] \
+      #        https://packages.freedom.press/apt-tools-prod ${VERSION_CODENAME?} main" \
+      #        | sudo tee /etc/apt/sources.list.d/fpf-apt-tools.list
 
-          sudo apt update
-          sudo apt install -y dangerzone
-      - name: Generate secrets
+      #    sudo apt update
+      #    sudo apt install -y dangerzone
+      - name: Set flag envvars
+        run: |-
+          echo DZ_RASTER_FLAG=~/secrets/raster.flag >> $GITHUB_ENV
+          echo DZ_GVISOR_FLAG=~/secrets/gvisor.flag >> $GITHUB_ENV
+          echo DZ_HOST_FLAG=~/secrets/host.flag >> $GITHUB_ENV
+      - name: Download Dangerzone
+        run: |-
+          wget https://github.com/freedomofpress/dangerzone/releases/download/v0.10.0-rc2/dangerzone_0.10.0-1_amd64.deb
+          sudo apt install -y ./dangerzone_0.10.0-1_amd64.deb
+      - name: Upgrade container image
+        run: dangerzone-image upgrade
+      - name: Generate flags
         run: |-
           mkdir ~/secrets
           # Instruct xxd to read from urandom and:
@@ -55,19 +59,41 @@ jobs:
           # 3. and length 32 octets (-l 32),
           #
           # which amounts to 256 bits of entropy.
-          xxd -p -c 999 -l 32 /dev/urandom > ~/secrets/rasterizer
-          xxd -p -c 999 -l 32 /dev/urandom > ~/secrets/gvisor
-          xxd -p -c 999 -l 32 /dev/urandom > ~/secrets/host
-      - name: Plant secrets in Dangerzone container image
+          xxd -p -c 999 -l 32 /dev/urandom > $DZ_RASTER_FLAG
+          xxd -p -c 999 -l 32 /dev/urandom > $DZ_GVISOR_FLAG
+          xxd -p -c 999 -l 32 /dev/urandom > $DZ_HOST_FLAG
+      - name: Make Dangerzone flag-aware
         run: |-
-          zcat /usr/share/dangerzone/container.tar.gz | podman load
-          podman build -f Dockerfile ~/secrets -t dangerzone.rocks/dangerzone
-          podman image list --format '{{.ID}}' dangerzone.rocks/dangerzone | \
-              sudo tee /usr/share/dangerzone/image-id.txt
-      - name: Sanitize submission
+          sudo patch -p2 -d /usr/lib/python3/dist-packages/dangerzone < dz.patch
+      - name: Create test submissions
         run: |-
-          dangezone-cli letter --ocr-lang eng
+          for flag in ~/secrets/*; do
+            text2image --text ${flag} --outputbase image-$(basename ${flag}) \
+              --ptsize=12 --font "Liberation Sans"
+          done
+      - name: Ensure flags can be captured
+        run: |-
+          sudo apt-get install -y python3-fitz python3-click
+          pip install fuzzysearch
+
+          dangerzone-cli *.flag.tif --ocr-lang eng
+          for flag in *-safe.pdf; do
+            ./check_submission.py -s ${flag} -S ~/secrets
+          done
+      - name: Sanitize user submission
+        continue-on-error: true
+        run: |-
+          dangerzone-cli letter --ocr-lang eng | tee logs
       - name: Check submission
         run: |-
-          apt-get install -y python3-fitz
-          ./check_submission letter-safe.pdf ~/secrets
+          if [[ -f letter-safe.pdf ]]; then
+            ./check_submission.py -s letter-safe.pdf -l logs -S ~/secrets
+          else
+            ./check_submission.py -l logs -S ~/secrets
+          fi
+      - name: Setup upterm session
+        uses: owenthereal/action-upterm@v1
+        if: ${{ failure() }}
+        with:
+          limit-access-to-actor: true # Restrict to the user who triggered the workflow
+          limit-access-to-users: apyrgio

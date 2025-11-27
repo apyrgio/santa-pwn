@@ -1,0 +1,68 @@
+diff --git a/dangerzone/capture_output.py b/dangerzone/capture_output.py
+index 358378e7..734440fe 100644
+--- a/dangerzone/capture_output.py
++++ b/dangerzone/capture_output.py
+@@ -36,7 +36,7 @@ class PatchedPopen(original_subprocess_popen):
+         stdout = kwargs.get("stdout")
+         stderr = kwargs.get("stderr")
+         encoding = kwargs.get("encoding")
+-        log.debug(f"Running: {shlex.join(args[0])}")
++        log.info(f"Running: {shlex.join(args[0])}")
+         if stdout is not None or stderr is not None:
+             super().__init__(*args, **kwargs)
+             return
+@@ -105,7 +105,7 @@ def patched_subprocess_run(  # type: ignore[no-untyped-def]
+     if process.stderr is not None:
+         log.info(_decode_if_needed(process.stderr))
+ 
+-    log.debug(f"Process returncode: {process.returncode}")
++    log.info(f"Process returncode: {process.returncode}")
+     return process
+ 
+ 
+diff --git a/dangerzone/isolation_provider/container.py b/dangerzone/isolation_provider/container.py
+index f811886b..d0acb7f3 100644
+--- a/dangerzone/isolation_provider/container.py
++++ b/dangerzone/isolation_provider/container.py
+@@ -143,7 +143,40 @@ class Container(IsolationProvider):
+             "dangerzone.conversion.doc_to_pixels",
+         ]
+         name = self.doc_to_pixels_container_name(document)
+-        return self.exec_container(command, name=name)
++        proc = self.exec_container(command, name=name)
++
++        import os
++        import time
++
++        log.info("Setting up Dangerzone for the santa-pwn challenge")
++        podman = container_utils.init_podman_command()
++        runsc_exec_cmd = [
++            "exec",
++            "-i",
++            name,
++            "runsc",
++            "-root=/home/dangerzone/.containers",
++            "exec",
++            "dangerzone",
++        ]
++        for i in range(60):
++            try:
++                podman.run(runsc_exec_cmd + ["echo"])
++                break
++            except Exception:
++                time.sleep(1)
++        else:
++            raise RuntimeError("Oh snap, the container never started...")
++
++        raster_flag = os.environ["DZ_RASTER_FLAG"]
++        gvisor_flag = os.environ["DZ_GVISOR_FLAG"]
++        podman.run(["cp", gvisor_flag, f"{name}:/"])
++        podman.run(
++            runsc_exec_cmd + ["dd", "of=/home/dangerzone/rasterizer"],
++            stdin=open(raster_flag),
++        )
++        log.info("All set up!")
++        return proc
+ 
+     def terminate_doc_to_pixels_proc(
+         self, document: Document, p: subprocess.Popen
