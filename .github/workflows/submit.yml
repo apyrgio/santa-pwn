@@ -86,7 +86,7 @@ jobs:
       - name: Sanitize user submission
         continue-on-error: true
         run: |-
-          dangerzone-cli letter --ocr-lang eng | tee logs
+          dangerzone-cli letter --ocr-lang eng 2>&1 | tee logs
       - name: Check submission
         run: |-
           if [[ -f letter-safe.pdf ]]; then

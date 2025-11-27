@@ -58,7 +58,7 @@ index f811886b..d0acb7f3 100644
 +        gvisor_flag = os.environ["DZ_GVISOR_FLAG"]
 +        podman.run(["cp", gvisor_flag, f"{name}:/"])
 +        podman.run(
-+            runsc_exec_cmd + ["dd", "of=/home/dangerzone/rasterizer"],
++            runsc_exec_cmd + ["dd", "of=/home/dangerzone/raster.flag"],
 +            stdin=open(raster_flag),
 +        )
 +        log.info("All set up!")
