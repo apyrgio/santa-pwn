@@ -1,8 +1,11 @@
 name: Check submission
 on:
-  push:
+  #push:
   pull_request_target: # Needed to access the GPG decryption key
     branches: [main]
+    paths:
+      - 'letter.gpg'
+  workflow_dispatch:
 
 permissions:
   contents: read # Needed to checkout Git branches
@@ -29,17 +32,7 @@ jobs:
           CHANGED_FILES=$(gh pr view ${{ github.event.pull_request.number }} --json files --jq '.files[].path')
           # Check if the only changed file is letter.gpg
           if [[ "$CHANGED_FILES" != "letter.gpg" ]]; then
-            cat <<EOF
-              🎅 Thank you for your submission!
-
-              To ensure this PR is nice and not naughty, this workflow works
-              only with pull requests that exclusively contain the `letter.gpg`
-              file. Since this PR contains other file modifications, it will not
-              be processed.
-
-              Feel free to update your PR accordingly, unless of course you
-              wanted to fix something in the repo.
-              EOF
+            cat rejection.txt
             exit 1
           fi
 
