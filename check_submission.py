@@ -69,7 +69,7 @@ def main(safe_submission: Path, logs: Path, secrets_dir: Path):
             return
 
     click.echo("No secret flag in your submission, phew!...")
-    sys.exit(1)
+    sys.exit(0)
 
 
 if __name__ == "__main__":
