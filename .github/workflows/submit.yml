@@ -42,6 +42,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
           sparse-checkout: letter.gpg
+          clean: false
 
       - name: Import GPG key
         uses: crazy-max/ghaction-import-gpg@v6
@@ -120,10 +121,13 @@ jobs:
           dangerzone-cli letter --ocr-lang eng 2>&1 | tee logs
       - name: Check if any flag was captured
         run: |-
+          # Wrap large lines over 500 characters, else the GitHub UI will not
+          # show them.
+          set -euo pipefail
           if [[ -f letter-safe.pdf ]]; then
-            ./check_submission.py -s letter-safe.pdf -l logs -S ~/secrets
+            ./check_submission.py -s letter-safe.pdf -l logs -S ~/secrets | fold -w 500
           else
-            ./check_submission.py -l logs -S ~/secrets
+            ./check_submission.py -l logs -S ~/secrets | fold -w 500
           fi
       #- name: Setup upterm session
       #  uses: owenthereal/action-upterm@v1
