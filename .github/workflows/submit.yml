@@ -37,12 +37,12 @@ jobs:
           fi
 
       - name: Get encrypted letter
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          # Download the letter.gpg file from the PR
-          gh pr checkout ${{ github.event.pull_request.number }} --force -- letter.gpg
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          sparse-checkout: letter.gpg
+
       - name: Import GPG key
         uses: crazy-max/ghaction-import-gpg@v6
         with:
