@@ -1,59 +1,94 @@
 name: Check submission
 on:
   push:
-  pull_request:
+  pull_request_target: # Needed to access the GPG decryption key
     branches: [main]
+
+permissions:
+  contents: read # Needed to checkout Git branches
+  pull-requests: read # Needed to inspect PR contents
 
 jobs:
   check-submission:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      #- name: "xkcd #838"
-      #  run: |-
-      #    # Make sure that the PR has just the encrypted submission.
-      #    CHANGES=$(git diff origin/main --name-only)
-      #    [[ "$CHANGES" == "letter.gpg" ]]
+      - name: Checkout base branch
+        uses: actions/checkout@v6
+        with:
+          # Checkout the base branch, not the PR's merge commit.
+          # This ensures we are running the trusted workflow.
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Check for a single letter to Santa
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Get the list of changed files in the PR
+          CHANGED_FILES=$(gh pr view ${{ github.event.pull_request.number }} --json files --jq '.files[].path')
+          # Check if the only changed file is letter.gpg
+          if [[ "$CHANGED_FILES" != "letter.gpg" ]]; then
+            cat <<EOF
+              🎅 Thank you for your submission!
+
+              To ensure this PR is nice and not naughty, this workflow works
+              only with pull requests that exclusively contain the `letter.gpg`
+              file. Since this PR contains other file modifications, it will not
+              be processed.
+
+              Feel free to update your PR accordingly, unless of course you
+              wanted to fix something in the repo.
+              EOF
+            exit 1
+          fi
+
+      - name: Get encrypted letter
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Download the letter.gpg file from the PR
+          gh pr checkout ${{ github.event.pull_request.number }} --force -- letter.gpg
       - name: Import GPG key
         uses: crazy-max/ghaction-import-gpg@v6
         with:
           gpg_private_key: ${{ secrets.KENNYS_PRIVATE_KEY }}
-      - name: Decrypt submission
+      - name: Decrypt letter
         env:
           privkey: ${{ secrets.KENNYS_PRIVATE_KEY }}
         run: |-
           gpg --output letter --decrypt letter.gpg
           # FIXME: We don't want folks to exfiltrate this key, is this enough?
           rm -rf ~/.gnupg
-      #- name: Install Dangerzone
+      - name: Install Dangerzone
+        run: |-
+          sudo apt-get update && sudo apt-get install ca-certificates -y
+          gpg --keyserver hkps://keys.openpgp.org \
+              --no-default-keyring --keyring ./fpf-apt-tools-archive-keyring.gpg \
+              --recv-keys "DE28 AB24 1FA4 8260 FAC9 B8BA A7C9 B385 2260 4281"
+          sudo mkdir -p /etc/apt/keyrings/
+          sudo mv fpf-apt-tools-archive-keyring.gpg /etc/apt/keyrings
+
+          . /etc/os-release
+          echo "deb [signed-by=/etc/apt/keyrings/fpf-apt-tools-archive-keyring.gpg] \
+              https://packages.freedom.press/apt-tools-prod ${VERSION_CODENAME?} main" \
+              | sudo tee /etc/apt/sources.list.d/fpf-apt-tools.list
+
+          sudo apt update
+          sudo apt install -y dangerzone
+      #- name: Download Dangerzone
       #  run: |-
-      #    sudo apt-get update && sudo apt-get install ca-certificates -y
-      #    gpg --keyserver hkps://keys.openpgp.org \
-      #        --no-default-keyring --keyring ./fpf-apt-tools-archive-keyring.gpg \
-      #        --recv-keys "DE28 AB24 1FA4 8260 FAC9 B8BA A7C9 B385 2260 4281"
-      #    sudo mkdir -p /etc/apt/keyrings/
-      #    sudo mv fpf-apt-tools-archive-keyring.gpg /etc/apt/keyrings
-
-      #    . /etc/os-release
-      #    echo "deb [signed-by=/etc/apt/keyrings/fpf-apt-tools-archive-keyring.gpg] \
-      #        https://packages.freedom.press/apt-tools-prod ${VERSION_CODENAME?} main" \
-      #        | sudo tee /etc/apt/sources.list.d/fpf-apt-tools.list
-
-      #    sudo apt update
-      #    sudo apt install -y dangerzone
-      - name: Set flag envvars
-        run: |-
-          echo DZ_RASTER_FLAG=~/secrets/raster.flag >> $GITHUB_ENV
-          echo DZ_GVISOR_FLAG=~/secrets/gvisor.flag >> $GITHUB_ENV
-          echo DZ_HOST_FLAG=~/secrets/host.flag >> $GITHUB_ENV
-      - name: Download Dangerzone
-        run: |-
-          wget https://github.com/freedomofpress/dangerzone/releases/download/v0.10.0-rc2/dangerzone_0.10.0-1_amd64.deb
-          sudo apt install -y ./dangerzone_0.10.0-1_amd64.deb
+      #    wget https://github.com/freedomofpress/dangerzone/releases/download/v0.10.0-rc2/dangerzone_0.10.0-1_amd64.deb
+      #    sudo apt install -y ./dangerzone_0.10.0-1_amd64.deb
       - name: Upgrade container image
         run: dangerzone-image upgrade
       - name: Generate flags
         run: |-
+          echo DZ_RASTER_FLAG=~/secrets/raster.flag >> $GITHUB_ENV
+          echo DZ_GVISOR_FLAG=~/secrets/gvisor.flag >> $GITHUB_ENV
+          echo DZ_HOST_FLAG=~/secrets/host.flag >> $GITHUB_ENV
+
           mkdir ~/secrets
           # Instruct xxd to read from urandom and:
           #
@@ -68,7 +103,7 @@ jobs:
       - name: Make Dangerzone flag-aware
         run: |-
           sudo patch -p2 -d /usr/lib/python3/dist-packages/dangerzone < dz.patch
-      - name: Create test submissions
+      - name: Create test letters
         run: |-
           for flag in ~/secrets/*; do
             text2image --text ${flag} --outputbase image-$(basename ${flag}) \
@@ -83,11 +118,13 @@ jobs:
           for flag in *-safe.pdf; do
             ./check_submission.py -s ${flag} -S ~/secrets
           done
-      - name: Sanitize user submission
+      - name: Sanitize letter to Santa
+        # It's fine if the letter cannot be sanitized, as long as it captures a
+        # flag and prints it to the stderr of the conversion process.
         continue-on-error: true
         run: |-
           dangerzone-cli letter --ocr-lang eng 2>&1 | tee logs
-      - name: Check submission
+      - name: Check if any flag was captured
         run: |-
           if [[ -f letter-safe.pdf ]]; then
             ./check_submission.py -s letter-safe.pdf -l logs -S ~/secrets
