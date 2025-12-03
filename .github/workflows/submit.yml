@@ -76,12 +76,13 @@ jobs:
       #    sudo apt install -y ./dangerzone_0.10.0-1_amd64.deb
       - name: Upgrade container image
         run: dangerzone-image upgrade
-      - name: Generate flags
+      - name: Set flag envvars
         run: |-
           echo DZ_RASTER_FLAG=~/secrets/raster.flag >> $GITHUB_ENV
           echo DZ_GVISOR_FLAG=~/secrets/gvisor.flag >> $GITHUB_ENV
           echo DZ_HOST_FLAG=~/secrets/host.flag >> $GITHUB_ENV
-
+      - name: Generate flags
+        run: |-
           mkdir ~/secrets
           # Instruct xxd to read from urandom and:
           #
