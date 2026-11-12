@@ -1,5 +1,10 @@
 # 🎅 Pwning Santa before the bad guys do 🎄
 
+**tl;dr:** Craft a document that breaks out of Dangerzone's sandbox, capture
+one of the three flags we plant during the conversion, and earn up to
+**$3,000** 💰. Encrypt your document with [Kenny's age key](kenny.pub), send it
+as `letter.age` in a PR, and our CI job will do the rest.
+
 ## 📜 The backstory
 
 Once upon a time, Santa Claus received letters from children all over the world,
@@ -20,30 +25,12 @@ naughty hackers do.
 Craft a _naughty_ letter that can demonstrably bypass some or all of
 Dangerzone's defenses and earn a bounty 💰.
 
-<table>
-  <tr>
-    <td>
-<details>
-  <summary><i>:information_source: Quick recap of how Dangerzone works</i></summary>
-  </br>
-
-  Dangerzone sanitizes documents in a secure sandbox, in a process that is
-  similar to a photocopy. It does so by spinning up a
-  [Podman](https://podman.io/) container, which spins up a
-  [gVisor](https://gvisor.dev/) sandbox, which in turn reads a document. The
-  sandbox then converts the document into a PDF, and the PDF pages into pixels.
-  The Dangerzone logic that runs on the host converts the pixels to images,
-  optionally OCRs them, and then creates a PDF. This PDF looks like the original
-  document, but is safe to read and share with others.
-
-  More info:
-  * [About Dangerzone](https://dangerzone.rocks/about/)
-  * [Safe Ride into the Dangerzone: Reducing attack surface with gVisor](https://dangerzone.rocks/news/2024-09-23-gvisor/)
-
-</details>
-    </td>
-  </tr>
-</table>
+> [!TIP]
+> New to Dangerzone? Read
+> [how Dangerzone works](https://docs.dangerzone.rocks/latest/explanation/how-dangerzone-works/)
+> and our
+> [security model](https://docs.dangerzone.rocks/latest/explanation/security-model/)
+> first.
 
 To demonstrate your attack, you can send a PR to this repo with a specially
 crafted document, and a [CI job](.github/workflows/submit.yml) will
@@ -63,11 +50,12 @@ detect it, and the submission will be considered a success.
 
 ## 💰 The bounty
 
-Capturing a flag varies in difficulty. Dangerzone operates under the assumption
+Capturing a flag varies in difficulty. Dangerzone
+[assumes](https://docs.dangerzone.rocks/latest/explanation/security-model/)
 that attackers can find vulnerabilities in the programs we use for rasterization
 (LibreOffice and PyMuPDF). Therefore, the `raster.flag` is expected to be
 captured at some point. The `gvisor.flag` flag requires escaping the gVisor
-sandbox, which is much, _much_ more difficult. And the `~/secrets/host` flag
+sandbox, which is much, _much_ more difficult. And the `host.flag` flag
 requires combining a gVisor sandbox escape and a Linux container escape at the
 same time, which we haven't seen yet in the wild.
 
@@ -87,7 +75,7 @@ multiple submissions that capture the same flag, the first one wins 🏁.
 
 1. Fork this repo.
 2. Craft your document (see
-   [supported types](https://github.com/freedomofpress/dangerzone?tab=readme-ov-file#some-features))
+   [supported formats](https://docs.dangerzone.rocks/latest/reference/supported-formats/))
    with the payload in it.
 3. Encrypt the document using [Kenny's public key](kenny.pub). You will need
    [age](https://age-encryption.org) for that:
@@ -96,7 +84,9 @@ multiple submissions that capture the same flag, the first one wins 🏁.
    age --encrypt --recipients-file kenny.pub --output letter.age ./letter
    ```
 
-4. Submit a PR and let the games begin! 🥳
+4. Add `letter.age` in the root of the repo. This must be the **only** file
+   that your PR changes, else the CI job will reject it.
+5. Submit a PR and let the games begin! 🥳
 
 ## ❓ FAQ
 
@@ -118,12 +108,15 @@ additional bounties they may offer for the vulnerability.
 
 ### 3. Can I experiment with this challenge locally?
 
-Absolutely! You are encouraged to install Dangerzone locally and experiment with
-creating a document that can read a file from your PC during the sanitization
-process. Check out our [CI job](.github/workflows/submit.yml)
-as well, to see how we plant the flags for the challenge. Once you have crafted
-your document, feel free to submit the encrypted version as a PR. Happy
-experimenting!
+Absolutely! You are encouraged to
+[install Dangerzone](https://docs.dangerzone.rocks/latest/how-to/install/)
+locally and experiment with creating a document that can read a file from your
+PC during the sanitization process. Check out our
+[CI job](.github/workflows/submit.yml) and [`dz.patch`](dz.patch) as well, to
+see how we plant the flags for the challenge, and our
+[sandbox debugging guide](https://docs.dangerzone.rocks/latest/how-to/contribute/debug-the-sandbox/)
+to see what happens within the sandbox. Once you have crafted your document,
+feel free to submit the encrypted version as a PR. Happy experimenting!
 
 ### 4. Does my submission have to pass the sanitization step?
 
