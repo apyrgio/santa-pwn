@@ -1,8 +1,7 @@
 diff --git a/dangerzone/isolation_provider/container.py b/dangerzone/isolation_provider/container.py
-index f811886b..d0acb7f3 100644
 --- a/dangerzone/isolation_provider/container.py
 +++ b/dangerzone/isolation_provider/container.py
-@@ -143,7 +143,40 @@ class Container(IsolationProvider):
+@@ -149,7 +149,41 @@
              "dangerzone.conversion.doc_to_pixels",
          ]
          name = self.doc_to_pixels_container_name(document)
@@ -35,10 +34,11 @@ index f811886b..d0acb7f3 100644
 +        raster_flag = os.environ["DZ_RASTER_FLAG"]
 +        gvisor_flag = os.environ["DZ_GVISOR_FLAG"]
 +        podman.run(["cp", gvisor_flag, f"{name}:/"])
-+        podman.run(
-+            runsc_exec_cmd + ["dd", "of=/home/dangerzone/raster.flag"],
-+            stdin=open(raster_flag),
-+        )
++        with open(raster_flag) as f:
++            podman.run(
++                runsc_exec_cmd + ["dd", "of=/home/dangerzone/raster.flag"],
++                stdin=f,
++            )
 +        log.info("All set up!")
 +        return proc
  
