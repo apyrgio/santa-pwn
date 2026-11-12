@@ -1,7 +1,20 @@
 diff --git a/dangerzone/isolation_provider/container.py b/dangerzone/isolation_provider/container.py
+index e41dd0e1..58506167 100644
 --- a/dangerzone/isolation_provider/container.py
 +++ b/dangerzone/isolation_provider/container.py
-@@ -149,7 +149,41 @@
+@@ -110,8 +110,9 @@ class Container(IsolationProvider):
+             verify_local_image(image_digest=image_digest)
+         security_args = self.get_runtime_security_args()
+         debug_args = []
+-        if self.debug:
+-            debug_args += ["-e", "RUNSC_DEBUG=1"]
++        # XXX: Disable gVisor debug, so that we get only the container's stderr.
++        # if self.debug:
++        #     debug_args += ["-e", "RUNSC_DEBUG=1"]
+ 
+         enable_stdin = ["-i"]
+         set_name = ["--name", name]
+@@ -149,7 +150,41 @@ class Container(IsolationProvider):
              "dangerzone.conversion.doc_to_pixels",
          ]
          name = self.doc_to_pixels_container_name(document)

@@ -156,7 +156,7 @@ jobs:
         # flag and prints it to the stderr of the conversion process.
         continue-on-error: true
         run: |-
-          dangerzone-cli letter --ocr-lang eng 2>&1 | tee logs
+          dangerzone-cli letter --debug --ocr-lang eng 2>&1 | tee logs
 
       - name: Check if any flag was captured
         run: |-
