@@ -74,6 +74,14 @@ jobs:
           KENNYS_AGE_KEY: ${{ secrets.KENNYS_AGE_KEY }} # zizmor: ignore[secrets-outside-env]
         run: |-
           set -euo pipefail
+          # Fail with an actionable message if the secret was never populated,
+          # instead of age's cryptic "no secret keys found".
+          if [[ -z "${KENNYS_AGE_KEY}" ]]; then
+            echo "::error::The KENNYS_AGE_KEY repository secret is empty or unset."
+            echo "Kenny cannot open any letter until it is set to the age"
+            echo "identity matching kenny.pub. No submission can succeed."
+            exit 1
+          fi
           # Don't follow symlinks to files outside the PR.
           if [[ ! -f submission/letter.age || -L submission/letter.age ]]; then
             echo "letter.age must be a regular file"
