@@ -89,11 +89,11 @@ multiple submissions that capture the same flag, the first one wins 🏁.
 2. Craft your document (see
    [supported types](https://github.com/freedomofpress/dangerzone?tab=readme-ov-file#some-features))
    with the payload in it.
-3. Encrypt the document using [Kenny's public key](kenny.asc).
+3. Encrypt the document using [Kenny's public key](kenny.pub). You will need
+   [age](https://age-encryption.org) for that:
 
    ```shell
-   gpg --import < kenny.asc
-   gpg --recipient kenny@santa.club --encrypt ./letter
+   age --encrypt --recipients-file kenny.pub --output letter.age ./letter
    ```
 
 4. Submit a PR and let the games begin! 🥳

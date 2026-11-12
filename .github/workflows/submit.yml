@@ -1,9 +1,9 @@
 name: Check submission
 on:
-  pull_request_target: # Needed to access the GPG decryption key
+  pull_request_target: # Needed to access the AGE private key
     branches: [main]
     paths:
-      - 'letter.gpg'
+      - 'letter.age'
   workflow_dispatch:
 
 permissions:
@@ -29,8 +29,8 @@ jobs:
           set -euo pipefail
           # Get the list of changed files in the PR
           CHANGED_FILES=$(gh pr view ${{ github.event.pull_request.number }} --json files --jq '.files[].path')
-          # Check if the only changed file is letter.gpg
-          if [[ "$CHANGED_FILES" != "letter.gpg" ]]; then
+          # Check if the only changed file is letter.age
+          if [[ "$CHANGED_FILES" != "letter.age" ]]; then
             cat rejection.txt
             exit 1
           fi
@@ -40,21 +40,22 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
-          sparse-checkout: letter.gpg
+          sparse-checkout: /letter.age
           clean: false
 
-      - name: Import GPG key
-        uses: crazy-max/ghaction-import-gpg@v6
-        with:
-          gpg_private_key: ${{ secrets.KENNYS_PRIVATE_KEY }}
+      - name: Install age
+        run: |-
+          sudo apt-get update && sudo apt-get install -y age
 
       - name: Decrypt letter
         env:
-          privkey: ${{ secrets.KENNYS_PRIVATE_KEY }}
+          # This is the only workflow in this repo, and it must run unattended,
+          # so a dedicated environment would not add any protection.
+          KENNYS_AGE_KEY: ${{ secrets.KENNYS_AGE_KEY }} # zizmor: ignore[secrets-outside-env]
         run: |-
-          gpg --output letter --decrypt letter.gpg
-          # FIXME: We don't want folks to exfiltrate this key, is this enough?
-          rm -rf ~/.gnupg
+          printf '%s\n' "${KENNYS_AGE_KEY}" \
+              | age --decrypt --identity - --output letter submission/letter.age
+          rm -rf submission
 
       - name: Install Dangerzone
         run: |-
