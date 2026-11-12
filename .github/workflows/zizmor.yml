@@ -8,6 +8,12 @@ on:
 
 permissions: {}
 
+# Linting the same ref twice serves no purpose, so supersede in-flight runs.
+# (Unlike the submission workflow, where every run must complete.)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   zizmor:
     name: Run zizmor

@@ -1,21 +1,29 @@
 name: Check submission
-on:
-  pull_request_target: # Needed to access the AGE private key
+on: # zizmor: ignore[concurrency-limits]
+  # We need `pull_request_target` because PRs come from forks, and only this
+  # trigger gives them access to Kenny's age key. This is safe *only* as long
+  # as we never execute or install anything from the PR. The only file we take
+  # from the PR is `letter.age`, which we check out in a separate directory.
+  pull_request_target: # zizmor: ignore[dangerous-triggers]
     branches: [main]
     paths:
       - 'letter.age'
   workflow_dispatch:
 
-permissions:
-  contents: read # Needed to checkout Git branches
-  pull-requests: read # Needed to inspect PR contents
+permissions: {}
+
+# We deliberately don't set concurrency limits. Every submission must be
+# evaluated, even if the submitter pushes a newer one while the first runs.
 
 jobs:
   check-submission:
+    name: Check submission
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # Needed to checkout Git branches and compare commits
     steps:
       - name: Checkout base branch
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Checkout the base branch, not the PR's merge commit.
           # This ensures we are running the trusted workflow.
@@ -25,10 +33,16 @@ jobs:
       - name: Check for a single letter to Santa
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          # Get the list of changed files in the PR
-          CHANGED_FILES=$(gh pr view ${{ github.event.pull_request.number }} --json files --jq '.files[].path')
+          # Get the list of changed files for the exact commit that triggered
+          # this run. Do not query the live PR, since its head may have moved
+          # in the meantime.
+          CHANGED_FILES=$(gh api "repos/${REPO}/compare/${BASE_SHA}...${HEAD_SHA}" \
+              --jq '.files[].filename')
           # Check if the only changed file is letter.age
           if [[ "$CHANGED_FILES" != "letter.age" ]]; then
             cat rejection.txt
@@ -36,12 +50,18 @@ jobs:
           fi
 
       - name: Get encrypted letter
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          # Keep the PR files away from our trusted files.
+          path: submission
           persist-credentials: false
+          # Download only `letter.age`. Cone mode would also check out every
+          # top-level file of the PR, so we disable it.
           sparse-checkout: /letter.age
-          clean: false
+          sparse-checkout-cone-mode: false
+          # Safe, since we never execute anything from the PR.
+          allow-unsafe-pr-checkout: true
 
       - name: Install age
         run: |-
@@ -53,6 +73,12 @@ jobs:
           # so a dedicated environment would not add any protection.
           KENNYS_AGE_KEY: ${{ secrets.KENNYS_AGE_KEY }} # zizmor: ignore[secrets-outside-env]
         run: |-
+          set -euo pipefail
+          # Don't follow symlinks to files outside the PR.
+          if [[ ! -f submission/letter.age || -L submission/letter.age ]]; then
+            echo "letter.age must be a regular file"
+            exit 1
+          fi
           printf '%s\n' "${KENNYS_AGE_KEY}" \
               | age --decrypt --identity - --output letter submission/letter.age
           rm -rf submission
@@ -88,7 +114,7 @@ jobs:
           mkdir ~/secrets
           # Instruct xxd to read from urandom and:
           #
-          # 1. Create a hexademical string (-p),
+          # 1. Create a hexadecimal string (-p),
           # 2. without newlines (-c 999),
           # 3. and length 32 octets (-l 32),
           #
