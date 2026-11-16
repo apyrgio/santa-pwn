@@ -1,16 +1,42 @@
 diff --git a/dangerzone/isolation_provider/container.py b/dangerzone/isolation_provider/container.py
-index e41dd0e1..ea7ae086 100644
+index e41dd0e..8e1c4e1 100644
 --- a/dangerzone/isolation_provider/container.py
 +++ b/dangerzone/isolation_provider/container.py
-@@ -84,6 +84,7 @@ class Container(IsolationProvider):
-         #
+@@ -1,6 +1,8 @@
+ import logging
++import os
+ import platform
+ import subprocess
++import tempfile
+ 
+ from .. import container_utils
+ from ..container_utils import make_seccomp_json_accessible
+@@ -85,6 +87,24 @@ class Container(IsolationProvider):
          # [1] https://github.com/freedomofpress/dangerzone-image/pull/55
          security_args += ["-e", "RUNSC_FLAGS=--ignore-cgroups"]
-+        security_args += ["-e", "JAVA_TOOL_OPTIONS=-Djavax.xml.accessExternalDTD= "]
  
++        # Prevent Java XML parsers in the sandbox (e.g., the H2Orestart extension)
++        # from resolving external entities/DTDs (XXE), by overriding the JDK's
++        # jaxp.properties file in the sandbox rootfs. An empty value means that no
++        # protocol (file:, http:, etc.) is allowed.
++        jaxp_props = tempfile.NamedTemporaryFile(
++            mode="w", prefix="dz-jaxp-", suffix=".properties", delete=False
++        )
++        with jaxp_props:
++            jaxp_props.write("javax.xml.accessExternalDTD=\n")
++            jaxp_props.write("javax.xml.accessExternalSchema=\n")
++            jaxp_props.write("javax.xml.accessExternalStylesheet=\n")
++        os.chmod(jaxp_props.name, 0o644)
++        jaxp_target = (
++            "/home/dangerzone/dangerzone-image/rootfs"
++            "/etc/java-21-openjdk/jaxp.properties"
++        )
++        security_args += ["-v", f"{jaxp_props.name}:{jaxp_target}:ro"]
++
          return security_args
  
-@@ -110,8 +111,9 @@ class Container(IsolationProvider):
+     @staticmethod
+@@ -110,8 +130,9 @@ class Container(IsolationProvider):
              verify_local_image(image_digest=image_digest)
          security_args = self.get_runtime_security_args()
          debug_args = []
@@ -22,7 +48,7 @@ index e41dd0e1..ea7ae086 100644
  
          enable_stdin = ["-i"]
          set_name = ["--name", name]
-@@ -149,7 +151,41 @@ class Container(IsolationProvider):
+@@ -149,7 +170,41 @@ class Container(IsolationProvider):
              "dangerzone.conversion.doc_to_pixels",
          ]
          name = self.doc_to_pixels_container_name(document)
