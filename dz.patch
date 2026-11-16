@@ -1,8 +1,16 @@
 diff --git a/dangerzone/isolation_provider/container.py b/dangerzone/isolation_provider/container.py
-index e41dd0e1..58506167 100644
+index e41dd0e1..ea7ae086 100644
 --- a/dangerzone/isolation_provider/container.py
 +++ b/dangerzone/isolation_provider/container.py
-@@ -110,8 +110,9 @@ class Container(IsolationProvider):
+@@ -84,6 +84,7 @@ class Container(IsolationProvider):
+         #
+         # [1] https://github.com/freedomofpress/dangerzone-image/pull/55
+         security_args += ["-e", "RUNSC_FLAGS=--ignore-cgroups"]
++        security_args += ["-e", "JAVA_TOOL_OPTIONS=-Djavax.xml.accessExternalDTD= "]
+ 
+         return security_args
+ 
+@@ -110,8 +111,9 @@ class Container(IsolationProvider):
              verify_local_image(image_digest=image_digest)
          security_args = self.get_runtime_security_args()
          debug_args = []
@@ -14,7 +22,7 @@ index e41dd0e1..58506167 100644
  
          enable_stdin = ["-i"]
          set_name = ["--name", name]
-@@ -149,7 +150,41 @@ class Container(IsolationProvider):
+@@ -149,7 +151,41 @@ class Container(IsolationProvider):
              "dangerzone.conversion.doc_to_pixels",
          ]
          name = self.doc_to_pixels_container_name(document)
